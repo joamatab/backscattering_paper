@@ -67,7 +67,6 @@ Icon?
 *.7z
 *.mpg
 *.bak
-*.mat
 
 *.xml
 *.tar.gz
