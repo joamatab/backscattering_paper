@@ -276,22 +276,22 @@ class Spectrum():
                 center = self.wavelen.min()
             if center > self.wavelen.max():
                 center = self.wavelen.max()
-            
+
         if width is not None:
             halfwidth = width/2
-            
-        if withmouse==True:
+
+        if withmouse:
             result = kcfit.easyfitgaussians( self.wavelen, self.lum, 
                                                halfwidth )
             self.bestfit, self.fit_params = result
-            
+
         else:
             #For a single Gaussian, params can be a dict containing
             #the keys yoffset, ymax, x0, and halfwidth.
             if height is None:
                 dw = self.wavelen[1] - self.wavelen[0]
                 height = self.lum[ pylab.where( abs(self.wavelen-center)<dw/2 ) ]
-            
+
             initparams = dict( yoffset=yoffset,
                                ymax=height,
                                halfwidth=halfwidth,
@@ -299,11 +299,11 @@ class Spectrum():
 
             result = kcfit.fitgaussians( self.wavelen, self.lum, initparams )
             self.bestfit, pbest, std_err = result
-            
+
             kcfit.absparams(pbest)
             self.fit_params = kcfit.params_to_dicts( kcfit.splitparams(pbest), 
                                                     kcfit.splitparams(std_err) )
-            
+
         if plotfit==True:
             self.plot_fit( linewidth=2.0, color='black' )
 
@@ -385,17 +385,17 @@ class Spectrum():
                     halfwidth = [width/2]*len(center)
                 else:
                     halfwidth = [item/2 for item in width]
-                
+
             for i,item in enumerate(center):
                 if item < self.wavelen.min(): center[i] = self.wavelen.min()
                 if item > self.wavelen.max(): center[i] = self.wavelen.max()
-            
-            
-        if withmouse==True:
+
+
+        if withmouse:
             result = kcfit.easyfitlorentzians( self.wavelen, self.lum, 
                                                halfwidth )
             self.bestfit, self.fit_params = result
-            
+
         else:
             """
             The initial paramters is a list of dicts, with each dict
@@ -408,13 +408,11 @@ class Spectrum():
                 height = [self.lum[ pylab.where( abs(self.wavelen-x0)<dw/2 ) ] for x0 in center]
             elif len(numpy.shape(height))==0:
                 height = [height]
-            
-            initparams = []
-            for y0, ymax, dx, x0 in zip(yoffset, height, halfwidth, center):
-                initparams.append(dict( yoffset=y0,
-                                   ymax=ymax,
-                                   halfwidth=dx,
-                                   x0=x0 ))
+
+            initparams = [
+                dict(yoffset=y0, ymax=ymax, halfwidth=dx, x0=x0)
+                for y0, ymax, dx, x0 in zip(yoffset, height, halfwidth, center)
+            ]
 
             """ 'values' is the array of y-axis values """
             values = self.lum[fitrange[0]:fitrange[1]].copy()
@@ -434,11 +432,11 @@ class Spectrum():
                     x = numpy.zeros( 2*npoints )
                     x[:npoints] = subset_x[:npoints]
                     x[npoints:] = subset_x[-npoints:]
-                    
+
                     y = numpy.zeros( 2*npoints )
                     y[:npoints] = subset_y[:npoints]
                     y[npoints:] = subset_y[-npoints:]
-                    
+
                     linearfit = numpy.polyfit( x, y, 1 )
 
                 linear_bg = numpy.polyval( linearfit, self.wavelen[fitrange[0]:fitrange[1]] )
@@ -450,7 +448,7 @@ class Spectrum():
                 self.wavelen[fitrange[0]:fitrange[1]],
                 values, 
                 initparams )
-            
+
             """ Optionally increase the resolution of the bestfit points """
             if number_bestfit_points is None:
                 self.bestfit = bestfit
@@ -470,19 +468,19 @@ class Spectrum():
             kcfit.absparams(self.pbest)
             self.fit_params = kcfit.params_to_dicts( kcfit.splitparams(self.pbest), 
                                                     kcfit.splitparams(std_err) )
-            
+
             for peak in self.fit_params:
                 peak['Q'] = peak['x0']/2/peak['halfwidth']
                 # error in Q is returned as a min/max tuple of the standard error
                 peak['Q_err'] = numpy.asarray( (peak['x0']-peak['x0_err'])/2/(peak['halfwidth']+peak['halfwidth_err']),
                                          (peak['x0']+peak['x0_err'])/2/(peak['halfwidth']-peak['halfwidth_err']) )
                 peak['Q_err'] = numpy.abs( peak['Q'] - peak['Q_err'] )
-        
+
                 if self._slope_remove:
                     peak['slope_removed'] = True
                     peak['slope_npoints'] = self._slope_npoints
                     peak['slope_fit'] = linearfit
-                
+
 
         if plotfit:
             self.plot_fit( linewidth=2.0, color='black', fitrange=fitrange )
@@ -546,7 +544,7 @@ class Spectrum():
                 lum_i = find( self.wavelen < wavelen )[-1]
                 self.lum /= self.lum[ lum_i ]
                 self.scale_factor = 1.0/self.lum[ lum_i ]
-        elif value is not None:
+        else:
             self.lum *= value
             self.scale_factor = value
         
@@ -675,9 +673,8 @@ class Spectrum():
         if self.fit_params is None:
             print ("There are no fit parameters to display.")
             return
-        
-        peak_number = 1
-        for peak in self.fit_params:
+
+        for peak_number, peak in enumerate(self.fit_params, start=1):
             f0 = peak['x0']
             Q = peak['Q']
             print(peak['ymax'])
@@ -685,7 +682,7 @@ class Spectrum():
             mc = f0/self.fsr
             loss_c = 2*pi*mc/Q # cavity loss
             loss_1 = (1-sqrt(R0))*loss_c/2.0 #sqrt(R0) = (1-2*loss1/loss_c); 2*loss1/loss_c = 1-sqrt(R0)
-            
+
             print ("Peak number %d:" % (peak_number))
             print ("  Wavelength: %.2f +- %.2f" % (peak['x0'], peak['x0_err']))
             print ("      Height: %.2f +- %.2f" % (peak['ymax'], peak['ymax_err']))
@@ -695,7 +692,6 @@ class Spectrum():
             print ("          mc: {:.3}".format(mc))
             print (" cavity loss(%): {:.3}".format(loss_c*100))
             print ("coupler loss(%): {:.3}".format(loss_1*100))
-            peak_number += 1
 
 
     def set_axes( self, axes ):
@@ -730,29 +726,29 @@ class Spectrum():
         """
         maxtab = []
         mintab = []
-        
+
         v = self.lum
         x = self.wavelen
-           
+
         if x is None:
             x = arange(len(v))
-        
+
         v = asarray(v)
-        
+
         if len(v) != len(x):
             sys.exit('Input vectors v and x must have same length')
-        
+
         if not isscalar(delta):
             sys.exit('Input argument delta must be a scalar')
-        
+
         if delta <= 0:
             sys.exit('Input argument delta must be positive')
-        
+
         mn, mx = Inf, -Inf
         mnpos, mxpos = NaN, NaN
-        
+
         lookformax = True
-        
+
         for i in arange(len(v)):
             this = v[i]
             if this > mx:
@@ -761,36 +757,34 @@ class Spectrum():
             if this < mn:
                 mn = this
                 mnpos = x[i]
-            
+
             if lookformax:
                 if this < mx-delta:
                     maxtab.append((mxpos, mx))
                     mn = this
                     mnpos = x[i]
                     lookformax = False
-            else:
-                if this > mn+delta:
-                    mintab.append((mnpos, mn))
-                    mx = this
-                    mxpos = x[i]
-                    lookformax = True
+            elif this > mn+delta:
+                mintab.append((mnpos, mn))
+                mx = this
+                mxpos = x[i]
+                lookformax = True
         if plotea:
             self.plot()
             wdips = array(mintab)[:,0]
             pdips = array(mintab)[:,1]
             plot(wdips, pdips, 'o')
-            
+
             L = 2*pi*13.84 #31.13e3
             fsr = diff(wdips)
             wav = array(mintab)[1:,0]
             ng = wav**2/(fsr)/L
             print (median(ng[argwhere(ng<5)]))
-            
 #            figure()
 #            plot(wav,fsr);xlabel('Wavelength (nm)');ylabel('FSR')
 #            figure()
 #            plot(wav, ng);xlabel('Wavelength (nm)');ylabel('$n_g$')
-    
+
         return array(mintab)[:,0] #return array(maxtab), array(mintab)
 
     def fit_fsr2(self, plotea = True):
@@ -850,28 +844,28 @@ class Spectrum():
         wdips = self.peakdet(delta = delta)
         delta_c = zeros_like(wdips)
         delta_1 = zeros_like(wdips)
-        Qs = zeros_like(wdips) 
+        Qs = zeros_like(wdips)
         f0s = zeros_like(wdips) 
-        
+
         for i in range(len(wdips)):
             wdip = wdips[i]
             wmin = wdip -0.5*dw
             wmax = wdip + 0.5*dw
-            
+
             if wmax>max(self.w):
                 wmax = max(self.w)
 
             if wmin<min(self.w):
                 wmin = min(self.w)
-            
+
             self.chop(wmin, wmax)
             self.fit_lorentzians(center = wdip, printparams=printparams, plotfit = False)
-            
+
             if plotfit:
                 figure()
                 self.plot_fit( linewidth=2.0, fitrange=(0,-1), label = 'fit', lw=2, ls='--' )#  color='black'
-            
-            
+
+
             peak = self.fit_params[0]
             f0 = peak['x0']
             Q = peak['Q']
@@ -881,19 +875,19 @@ class Spectrum():
             mc = f0/self.fsr
             loss_c = 2*pi*mc/Q # cavity loss
             loss_1 = (1-sqrt(R0))*loss_c/2.0 #sqrt(R0) = (1-2*loss1/loss_c); 2*loss1/loss_c = 1-sqrt(R0)
-            
+
             delta_c[i] = loss_c*100
             delta_1[i] = loss_1*100
             Qs[i] = Q
             f0s[i] = f0
 
-            if plotfit:            
+            if plotfit:    
                 plot(self.wavelen, self.lum, lw=2.0)
                 title(' $\delta_c$ = {:.2}%, K = {:.2}%'.format(loss_c*100, loss_1*100))
                 xlabel('Wavelength (nm)')
                 ylabel('Transmission (dB)')
                 legend(loc = 'best')
-                savefig('./figures/'+ str(int(f0)))
+                savefig(f'./figures/{int(f0)}')
 
             self.lum = array(self.p)
             self.wavelen = array(self.w)
@@ -907,7 +901,6 @@ class Spectrum():
             plot(f0s, delta_c, '.')
             xlabel('Wavelength (nm)')
             ylabel('RTL (%)')
-            
 #        print '%%%%%%%%%%%%%%%%%%%%%%  Averages  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%'
         print (" cavity loss(%): {:.3} +- {:.3}".format(mean(delta_c), std(delta_c)))
         print ("coupler loss(%): {:.3} +- {:.3}".format(mean(delta_1), std(delta_1)))
@@ -937,23 +930,23 @@ class Spectrum():
         wdips = self.peakdet(delta = delta)
         delta_p = zeros_like(wdips)
         delta_1 = zeros_like(wdips)
-        Qs = zeros_like(wdips) 
-        f0s = zeros_like(wdips) 
+        Qs = zeros_like(wdips)
+        f0s = zeros_like(wdips)
         Rbs = zeros_like(wdips)
-        
+
         for i in range(len(wdips)):
             wdip = wdips[i]
             wmin = wdip - 0.5*dw
             wmax = wdip + 0.5*dw
-            
+
             if wmax>max(self.w):
                 wmax = max(self.w)
 
             if wmin<min(self.w):
                 wmin = min(self.w)
-            
+
             [w, p] = self.chop(wmin, wmax)
-            
+
             if bs: # back-scattering model = True
                 p0 = array([1, 0.02, 35, wdip]) #  K = K2 = 1, RTL = 0.01, Rbs = 0.02
                 popt, pcov = curve_fit(f_ring_bs, w, p, p0 = p0, bounds=(0, [100, 100, 100, wdip+10]))
@@ -968,8 +961,6 @@ class Spectrum():
                     figure()
                     plot(self.wavelen, self.lum, lw = 2)
                     plot(w,f_ring_bs(w, popt[0],popt[1],popt[2],popt[3]), label = 'fit', lw=2, ls='--')
-                    
-                    
 #                    xlabel('Wavelength (nm)', fontsize = FONTX)
 #                    ylabel('Transmission (dB)', fontsize = FONT)
                     xticks([wdip - 0.2, wdip - 0.1, wdip, wdip + 0.1, wdip + 0.2])
@@ -977,23 +968,23 @@ class Spectrum():
 #                    title('Tp = {:.2} %, K = {:.2} %, Rbs = {} dB/mm'.format(delta_c[i], delta_1[i], int(round(-Rbs[i]))  ))
 #                    title('F = {:.2} ($\delta_c$ = {:.2}%), K1 = $\delta_1$ = {:.2} %, Rbs = {} dB/mm'.format(2*pi/delta_c[i],delta_c[i], delta_1[i], int(round(Rbs[i]))  ))
                     title('$\delta_c$ = {:.2}%, $\delta_1$ = {:.2} %, Rbs = {} dB'.format(delta_p[i] + 2*delta_1[i], delta_1[i], int(round(-Rbs[i]))))
-  
+
                     legend()#loc = 'best'
                     plt.tight_layout()
                     if PDF:
-                        savefig(FPATH + 'bs' + str(int(wdip))+'.pdf')
+                        savefig(f'{FPATH}bs{int(wdip)}.pdf')
                     else:
-                        savefig(FPATH + 'bs' + str(int(wdip)))
-                    
-                        
+                        savefig(f'{FPATH}bs{int(wdip)}')
+                                        
+                                            
 
-                
+
             else: # back-scattering model = False
                 p0 = array([1, 0.1, wdip]) #  K1 = K2 = 1, RTL = 0.1
                 popt, pcov = curve_fit(f_ring, w, p, p0 = p0, bounds=(0, [100, 100, wdip + 10]))
                 delta_c[i] = popt[1] #RTL
                 delta_1[i] = popt[0]   
-                
+
 
                 if plotfit:
                     figure()
@@ -1009,7 +1000,7 @@ class Spectrum():
                         savefig(FPATH + str(int(wdip))+'.pdf')
                     else:
                         savefig(FPATH + str(int(wdip)))
-            
+
 
             self.reset_spectrum()
 
@@ -1022,12 +1013,14 @@ class Spectrum():
             plot(f0s, delta_p, '.')
             xlabel('Wavelengvth (nm)')
             ylabel('RLT (%)')
-            
 #        print '%%%%%%%%%%%%%%%%%%%%%%  Averages  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%'
         print (" cavity loss(%): {:.2} +- {:.2}".format(mean(delta_p), std(delta_p)))
         print ("coupler loss(%): {:.2} +- {:.2}".format(mean(delta_1), std(delta_1)))
         if bs:
-            print ("Backscattering: {}dB/cm +- {}dB/cm".format( int(round(mean(Rbs))), int(round(std(Rbs)))) )
+            print(
+                f"Backscattering: {int(round(mean(Rbs)))}dB/cm +- {int(round(std(Rbs)))}dB/cm"
+            )
+
         return 0
 
 
@@ -1035,7 +1028,8 @@ class Spectrum():
 """
 1x2 splitters 2015
 """
-path = PATH + 'splitters/'
+
+path = f'{PATH}splitters/'
 c = ['JoaquinMatres_SplitterCavityMMI1x2_1_1964', # 1
           'JoaquinMatres_SplitterCavityMMI1x2_1965', #0
 #          'JoaquinMatres_AD_bent_g400_L0_2_2314',
@@ -1045,7 +1039,7 @@ c = ['JoaquinMatres_SplitterCavityMMI1x2_1_1964', # 1
 Add drop rings 2015
 """
 
-pRR5s= PATH + 'AD/'
+pRR5s = f'{PATH}AD/'
 RR5s =    ['JoaquinMatres_AD_Symm_g100_L0_2_1590', # symmetric
           'JoaquinMatres_AD_Symm_g200_L0_2_1586',
           'JoaquinMatres_AD_Symm_g300_L0_2_1582',
@@ -1054,7 +1048,7 @@ RR5s =    ['JoaquinMatres_AD_Symm_g100_L0_2_1590', # symmetric
           ]
 
 
-pRR5b= PATH + 'ADB/'
+pRR5b = f'{PATH}ADB/'
 RR5b = ['JoaquinMatres_AD_bent_g200_L0_2_2338',# bent coupler, results backscatter paper
         'JoaquinMatres_AD_bent_g300_L0_2_2326',
         'JoaquinMatres_AD_bent_g400_L0_2_2314',
